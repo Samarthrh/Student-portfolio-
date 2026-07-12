@@ -1,5 +1,6 @@
 {
   "name": "student-portfolio",
+  "description": "Student Portfolio — A responsive personal portfolio built with React and Vite that showcases projects, skills, and contact information.",
   "private": true,
   "version": "0.0.0",
   "type": "module",
