@@ -1,20 +1,22 @@
-import "./App.css";
-import Header from "./components/Header";
-import About from "./components/About";
-import Skills from "./components/skills";
-import Footer from "./components/Footer";
+import { Routes, Route } from 'react-router-dom';
+import NavBar from './components/NavBar';
+import Home from './pages/Home';
+import Projects from './pages/Projects';
+import Contact from './pages/Contact';
+import NotFound from './pages/NotFound';
 
 function App() {
-  const skills = ["Java", "HTML", "CSS", "JavaScript"];
-
   return (
-    <div className="container">
-      <Header name="Samarth Rojara - D25IT129" />
-      <About />
-      <Skills skillList={skills} />
-      <Footer />
-    </div>
+    <>
+      <NavBar />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/projects" element={<Projects />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 }
-
 export default App;
+
