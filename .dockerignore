@@ -1,0 +1,25 @@
+# Exclude heavy dependencies and sensitive files from Docker build context (Practical 11)
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Exclude environment secrets
+.env
+.env.local
+.env.*
+!.env.example
+
+# Exclude build output and caches
+dist
+dist-ssr
+.cache
+.vite
+
+# Exclude git metadata
+.git
+.gitignore
+
+# Exclude OS-generated files
+.DS_Store
+Thumbs.db

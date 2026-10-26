@@ -1,0 +1,74 @@
+# ==============================================================================
+# Docker Compose Multi-Container Orchestration (Practical 11)
+# Services: Frontend (React) + Backend (Node/Express) + Database (MongoDB)
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # 1. MongoDB Database Service
+  mongodb:
+    image: mongo:7.0
+    container_name: task-manager-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      # Named volume ensuring persistent storage across container restarts (Supplementary Requirement)
+      - mongo-data:/data/db
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Node/Express REST API Backend Service
+  backend:
+    container_name: task-manager-backend
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=production
+      - PORT=5001
+      # References MongoDB container via service name on the internal bridge network
+      - MONGO_URI=mongodb://mongodb:27017/taskdb
+      - JWT_SECRET=super_secret_jwt_key_practical7_itue301_charusat
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # 3. React Frontend Application Service
+  frontend:
+    container_name: task-manager-frontend
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: http://localhost:5001
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:5001
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+# Named Volumes definition for database persistence
+volumes:
+  mongo-data:
+    driver: local
+
+# Internal Bridge Network for inter-container communication
+networks:
+  app-network:
+    driver: bridge

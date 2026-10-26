@@ -1,127 +1,139 @@
 # Student Portfolio & Full-Stack Task Management Platform
 
-A high-performance full-stack web application featuring **React 19 (Vite)**, **React Router 7**, **Express.js**, **MongoDB (Mongoose)**, **bcrypt** password hashing, **JWT authentication pipeline**, **route-based code splitting**, **in-memory caching (`node-cache`)**, and **asynchronous event-driven architecture using Node.js native `EventEmitter`**.
+A modern full-stack web application featuring **React 19 (Vite)**, **React Router 7**, **Express.js**, **MongoDB (Mongoose)**, **bcrypt** password hashing, **JWT authentication pipeline**, **route-based code splitting**, **in-memory caching (`node-cache`)**, **asynchronous event-driven architecture**, and **complete containerization with Docker & Docker Compose**.
 
 > **Course**: Advanced Web Development Frameworks (ITUE301)  
-> **Practical 10**: Asynchronous Processing with Event-Driven Architecture  
+> **Practical 11**: Containerization with Docker and Docker Compose  
 > **Student**: Samarth Rojara  
 
 ---
 
-## 🏛️ System Architecture: Event-Driven Background Processing
+## 🏛️ System Architecture: Multi-Container Docker Orchestration
 
 ```text
-POST /tasks (or DELETE /tasks/:id) Request
-       │
-       ▼
- 1. Write Task to MongoDB Database
-       │
-       ▼
- 2. Invalidate In-Memory Cache (node-cache)
-       │
-       ▼
- 3. res.status(201).json(task) ──► API Responds Immediately (~3.3 ms)
-       │
-       ▼
- 4. taskEvents.emit('task-created', taskData) (Asynchronous Decoupled Event)
-       │
-       ▼ (Handled in background without blocking client)
- [Notification Listener (listeners.js)]
-       ├── Logs task title, user, priority, and timestamps
-       ├── Simulates slow email/webhook delivery (1500ms delay)
-       └── Appends audit log to in-memory event stream (GET /events/log)
+                     docker-compose.yml
+                             │
+            ┌────────────────┼────────────────┐
+            ▼                ▼                ▼
+   ┌─────────────────┐ ┌───────────────┐ ┌────────────────┐
+   │ task-frontend   │ │ task-backend  │ │ task-mongo     │
+   │ (React Vite)    │ │ (Node/Express)│ │ (MongoDB 7.0)  │
+   │ Port: 5173      │ │ Port: 5001    │ │ Port: 27017    │
+   └────────┬────────┘ └───────┬───────┘ └───────┬────────┘
+            │                  │                 │
+            └───────────┬──────┴─────────────────┘
+                        ▼
+            [app-network (Bridge)]
+      (Inter-container service name DNS)
+            frontend ──► backend:5001 ──► mongodb:27017
+                                                 │
+                                                 ▼
+                                        [Volume: mongo-data]
+                                     (Persistent Database Storage)
 ```
 
 ---
 
-## ⏱️ Console Proof of Non-Blocking Asynchronous Timing
+## 🐳 Docker Services & Configuration
 
-Recorded live during automated endpoint verification:
+The application is orchestrated into 3 isolated containers communicating across a shared bridge network (`app-network`):
 
-```text
-[API] Response sent at:           2026-10-26T09:21:58.344Z (Status: 201 Created)
-[Event Triggered] 'task-created': 2026-10-26T09:21:58.345Z
-[Client Received Response]:       3.36 ms (Instant HTTP response)
-   ... (Client continues browsing while background worker processes) ...
-[Background Notification Done]:   2026-10-26T09:21:59.846Z (+1502 ms after response sent)
-```
-
-> **Observation**: The client receives HTTP `201 Created` in **3.36 ms**. The heavy notification work executes in the background and finishes **1.5 seconds later**, with zero delay perceived by the end user!
+| Service | Container Name | Base Image / Build | Port Mapping | Storage / Notes |
+| :--- | :--- | :--- | :---: | :--- |
+| **`frontend`** | `task-manager-frontend` | `Dockerfile.frontend` (Multi-stage Node 18) | `5173:5173` | Built with Vite, served via `vite preview --host 0.0.0.0` |
+| **`backend`** | `task-manager-backend` | `Dockerfile.backend` (Node 18 Alpine) | `5001:5001` | Express API, connects to `mongodb://mongodb:27017/taskdb` |
+| **`mongodb`** | `task-manager-mongo` | `mongo:7.0` (Official Image) | `27017:27017` | Named volume `mongo-data` mounted at `/data/db` |
 
 ---
 
-## 🛠️ Key Implementation Details (Practical 10)
+## 🚀 Running the Full Stack with a Single Command
 
-1. **Dedicated EventEmitter Module (`events.js`)**:
-   - Subclassed Node.js native `EventEmitter`.
-   - Exported a shared singleton instance `taskEvents` with extended listener capacity (`setMaxListeners(25)`).
-2. **Decoupled Background Listeners (`listeners.js`)**:
-   - **`task-created`**: Emitted upon task creation. Simulates asynchronous email/Slack dispatch with a 1.5s delay.
-   - **`task-deleted` (Supplementary 1)**: Emitted upon task deletion. Simulates background archival and analytics recording.
-   - **`error` (Supplementary 2)**: Catches and logs errors thrown within event handlers, preventing unhandled error exceptions from crashing the server process.
-3. **Decoupled Route Handlers (`server.js`)**:
-   - `POST /tasks`: Saves task, invalidates cache, transmits HTTP `201 Created` immediately, and emits `task-created`.
-   - `DELETE /tasks/:id`: Deletes task, invalidates cache, transmits HTTP `200 OK` immediately, and emits `task-deleted`.
-4. **Event Audit Log & Debug Endpoint (`GET /events/log`)**:
-   - Returns a history of all background events with their trigger time, completion time, payload details, and delivery status.
-5. **Frontend Event Stream Monitor (`src/components/TaskAnalytics.jsx`)**:
-   - Displays real-time background event stream cards directly inside the web UI with live event badges (`task-created`, `task-deleted`, `error`).
+### 1. Build and Start All Containers
+From the project root, start all 3 services simultaneously:
+
+```bash
+docker compose up --build
+```
+*(or `docker-compose up --build` for Docker Compose v1)*
+
+### 2. Verify Running Containers
+Check that all 3 services are active and healthy:
+
+```bash
+docker ps
+```
+
+Expected output:
+```text
+CONTAINER ID   IMAGE                    COMMAND                  STATUS         PORTS                     NAMES
+a1b2c3d4e5f6   student-portfolio-fe     "npm run preview..."    Up 2 minutes   0.0.0.0:5173->5173/tcp    task-manager-frontend
+b2c3d4e5f6a1   student-portfolio-be     "node server.js"         Up 2 minutes   0.0.0.0:5001->5001/tcp    task-manager-backend
+c3d4e5f6a1b2   mongo:7.0                "docker-entrypoint..."   Up 2 minutes   0.0.0.0:27017->27017/tcp  task-manager-mongo
+```
+
+### 3. Accessing the Application
+* **Frontend Application**: `http://localhost:5173`
+* **Backend REST API**: `http://localhost:5001`
+* **Backend Health Check**: `http://localhost:5001/health`
+* **MongoDB Direct Connection**: `mongodb://localhost:27017/taskdb`
+
+### 4. Stop the Containers
+```bash
+docker compose down
+```
+*(To also wipe the database volume: `docker compose down -v`)*
+
+---
+
+## 🛠️ Key Implementation Details (Practical 11)
+
+1. **Multi-Stage Frontend Dockerfile (`Dockerfile.frontend`)**:
+   - **Stage 1 (`build`)**: Installs dependencies and compiles the optimized production Vite bundle into `/app/dist`.
+   - **Stage 2 (`serve`)**: Copies only the built assets and minimal runtime files, significantly reducing the final image footprint.
+2. **Lean Backend Dockerfile (`Dockerfile.backend`)**:
+   - Uses `node:18-alpine` base image.
+   - Executes `npm install --omit=dev` to exclude development dependencies in the container image.
+3. **Build Context Optimization (`.dockerignore`)**:
+   - Excludes heavy local `node_modules`, sensitive `.env` files, build caches, and git metadata.
+   - Prevents host/container OS binary incompatibilities and speeds up build context transfer.
+4. **Persistent Named Volume (`mongo-data`)**:
+   - Configured in `docker-compose.yml` under `volumes: mongo-data:/data/db`.
+   - Ensures all user accounts, hashed credentials, and task records persist across container restarts, stops, and rebuilds.
+5. **Inter-Container Networking (`app-network`)**:
+   - Configures an internal Docker bridge network where Docker's embedded DNS resolves container service names (e.g. `mongodb` resolves to the MongoDB container's internal IP).
 
 ---
 
 ## 📝 Analysis & Key Questions (Viva / Rubric)
 
-### 1. Why does emitting an event not block the API response, even though both run on the same Node.js process?
-* Node.js operates on a single-threaded **Event Loop**.
-* When `res.status(201).json(task)` is called, Express flushes the HTTP response headers and body down the network socket to the client immediately.
-* Inside the listener, background side-effects (like timers, network I/O, database writes, or email dispatches) use asynchronous non-blocking APIs (e.g. `setTimeout`, `fetch`, or promises). These tasks are offloaded to Node's libuv thread pool or system kernel, freeing the main thread to complete the HTTP cycle instantly.
+### 1. Why does the backend container need to reference the MongoDB container by its service name (e.g., `mongodb`) rather than `localhost`?
+* In Docker, each container has its own isolated network stack and private loopback interface (`localhost` / `127.0.0.1`).
+* If the backend container attempts to connect to `mongodb://localhost:27017`, it searches for MongoDB inside its *own* container filesystem, where MongoDB is not running.
+* When containers are joined to a user-defined Docker bridge network (`app-network`), Docker provides an automatic **embedded DNS server** that resolves container service names (like `mongodb` or `backend`) to their internal container IP addresses. Therefore, `mongodb://mongodb:27017/taskdb` correctly routes packets to the database container.
 
-### 2. What would happen to API response time if the notification logic were placed directly inside the POST route instead of in an event handler?
-* If the notification logic (e.g., waiting 1.5 seconds for a third-party SMTP server or webhook) were written sequentially inside the route handler before `res.json()`:
-  - The client would be forced to wait **1,500ms + database query time** before receiving a response.
-  - Slow external services or network timeouts would directly delay the user's interface.
-  - Server throughput would drop dramatically as concurrent requests queue up waiting for slow external I/O.
-* Using an event-driven architecture keeps API response times at **~3ms**.
+### 2. What is the difference between `EXPOSE` in a Dockerfile and the `ports` mapping in `docker-compose.yml`?
+* **`EXPOSE` (Dockerfile)**:
+  - Serves as internal documentation and metadata indicating which ports the containerized process listens on inside the container.
+  - It does **not** publish or bind the port to the host machine's network interface; host browsers cannot access an exposed port without port publishing.
+* **`ports` mapping (docker-compose.yml)**:
+  - Formatted as `HOST:CONTAINER` (e.g., `"5173:5173"` or `"5001:5001"`).
+  - Actively configures iptables/network routing rules on the host operating system, binding the host machine's port to the container's internal port so external traffic and host browsers can reach the container.
 
-### 3. Why is EventEmitter a reasonable choice for this scale of application, but not for a production system handling millions of events per day?
-* **Why EventEmitter Works Well Here**:
-  - Built directly into the Node.js standard library with zero external dependencies.
-  - Ultra-fast in-memory dispatch with negligible CPU overhead for single-instance applications.
-* **Why It Fails at High Production Scale**:
-  - **No Persistence**: Events exist solely in process RAM. If the Node.js process crashes, restarts, or restarts on deployment, all in-flight events are permanently lost.
-  - **No Retries or Backoff**: If an email provider fails, `EventEmitter` cannot automatically retry with exponential backoff or dead-letter queues.
-  - **No Multi-Server Distribution**: In a clustered environment with multiple instances behind a load balancer, events cannot be shared across servers.
-  - **Memory Pressure**: Unbounded events under heavy spikes can exhaust Node's heap memory.
-  - *Production Solution*: At enterprise scale, dedicated message brokers like **RabbitMQ**, **Apache Kafka**, or Redis-backed queues (**BullMQ**) provide persistence, distributed consumption, rate limiting, and guaranteed delivery.
+### 3. Why is it considered bad practice to copy `node_modules` into a Docker image instead of running `npm install` inside the container?
+* **OS & CPU Architecture Incompatibility**: Native C/C++ compiled binaries (such as `fsevents`, `bcrypt`, or `esbuild`) built on a host OS (e.g., macOS ARM64 / Darwin) will crash with `Exec format error` or segmentation faults inside a Linux Alpine/Debian container.
+* **Bloated Build Context**: Local `node_modules` can be hundreds of megabytes in size, drastically slowing down Docker build context uploads to the daemon.
+* **Inconsistent Dependencies**: Running `npm install` inside the container ensures packages are resolved and compiled specifically for the container's target operating system, architecture, and Node.js version.
 
 ---
 
-## 🚀 Running the Project Locally
+## 💻 Alternative: Running Locally without Docker
 
-### 1. Start Express Backend API
+If Docker is not running, the application can still be run locally:
+
 ```bash
+# Terminal 1: Backend
 npm run server
-```
-*Listens on `http://localhost:5001` with MongoDB connected, caching active, and EventEmitter listening.*
 
-### 2. Start Frontend Dev Server
-```bash
+# Terminal 2: Frontend
 npm run dev
-```
-*Available at `http://localhost:5173`. Navigate to **Tasks (JWT Auth)**.*
-
-### 3. Inspecting Background Event Stream
-* Open `http://localhost:5001/events/log` in your browser or Postman to view recent background events.
-* In the web UI, click **"📊 Show Analytics & Metrics"** to observe live event stream cards!
-
----
-
-## 🛠️ Build & Verification
-
-```bash
-# Production bundle
-npm run build
-
-# Run linter
-npm run lint
 ```
