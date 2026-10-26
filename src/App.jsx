@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import NavBar from './components/NavBar';
+import NavBar from './components/Navbar';
 import RouteLoadingFallback from './components/RouteLoadingFallback';
 
 // Practical 8: Route-based Code Splitting using React.lazy()

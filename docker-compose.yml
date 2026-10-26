@@ -3,8 +3,6 @@
 # Services: Frontend (React) + Backend (Node/Express) + Database (MongoDB)
 # ==============================================================================
 
-version: '3.8'
-
 services:
   # 1. MongoDB Database Service
   mongodb:

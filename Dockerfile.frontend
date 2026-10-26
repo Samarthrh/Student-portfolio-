@@ -3,7 +3,7 @@
 # ==============================================================================
 
 # Stage 1: Build the React application with Vite
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # Stage 2: Lean runtime stage to serve the built bundle
-FROM node:18-alpine AS serve
+FROM node:20-alpine AS serve
 
 WORKDIR /app
 
