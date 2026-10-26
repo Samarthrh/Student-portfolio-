@@ -9,6 +9,8 @@ import User from './models/User.js';
 import auth from './middleware/auth.js';
 import { validateTask, validateRegister, validateLogin } from './middleware/validate.js';
 import cache, { cacheMetrics } from './cache.js';
+import taskEvents from './events.js';
+import { eventLog } from './listeners.js';
 
 dotenv.config();
 
@@ -26,7 +28,8 @@ app.get('/health', (req, res) => {
     status: 'ok',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     auth: 'enabled',
-    caching: 'node-cache (TTL: 60s)'
+    caching: 'node-cache (TTL: 60s)',
+    eventProcessing: 'EventEmitter (async background handlers)'
   });
 });
 
@@ -49,6 +52,19 @@ app.post('/cache/flush', (req, res) => {
   res.json({
     message: 'Cache successfully flushed and metrics reset',
     stats: cacheMetrics.getStats()
+  });
+});
+
+/* ==========================================================================
+   Event-Driven Architecture Debug Log (Practical 10)
+   ========================================================================== */
+
+// GET /events/log: Returns audit log of background events processed asynchronously
+app.get('/events/log', (req, res) => {
+  res.json({
+    totalEvents: eventLog.length,
+    events: eventLog,
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -151,7 +167,7 @@ app.get('/me', auth, async (req, res, next) => {
 });
 
 /* ==========================================================================
-   Protected Task Routes with In-Memory Caching (Practical 9)
+   Protected Task Routes with In-Memory Caching & EventEmitter Pipeline
    ========================================================================== */
 
 // GET /tasks: Checks cache first (TTL 60s); queries DB on cache MISS
@@ -160,7 +176,6 @@ app.get('/tasks', auth, async (req, res, next) => {
     const cacheKey = `tasks_${req.user.id}`;
     const bypassCache = req.headers['x-no-cache'] === 'true' || req.query.nocache === 'true';
 
-    // 1. Check cache (HIT)
     if (!bypassCache) {
       const cachedTasks = cache.get(cacheKey);
       if (cachedTasks) {
@@ -170,13 +185,11 @@ app.get('/tasks', auth, async (req, res, next) => {
       }
     }
 
-    // 2. Cache MISS: Query MongoDB
     cacheMetrics.recordMiss();
     const tasks = await Task.find({
       $or: [{ user: req.user.id }, { user: null }, { user: { $exists: false } }]
     }).sort({ createdAt: -1 });
 
-    // 3. Store in cache with 60-second TTL
     cache.set(cacheKey, tasks);
     cacheMetrics.recordWrite();
 
@@ -187,7 +200,7 @@ app.get('/tasks', auth, async (req, res, next) => {
   }
 });
 
-// GET /tasks/:id: Cached separately from all-tasks list (Supplementary Problem 1)
+// GET /tasks/:id: Cached separately from all-tasks list
 app.get('/tasks/:id', auth, async (req, res, next) => {
   try {
     const cacheKey = `task_${req.user.id}_${req.params.id}`;
@@ -222,7 +235,7 @@ app.get('/tasks/:id', auth, async (req, res, next) => {
   }
 });
 
-// POST /tasks: Writes to MongoDB and invalidates cached all-tasks
+// POST /tasks: Responds immediately (201), then emits 'task-created' event asynchronously (Practical 10)
 app.post('/tasks', auth, validateTask, async (req, res, next) => {
   try {
     const task = await Task.create({
@@ -234,13 +247,23 @@ app.post('/tasks', auth, validateTask, async (req, res, next) => {
     cache.del(`tasks_${req.user.id}`);
     cacheMetrics.recordInvalidation();
 
+    // 1. Send API response immediately
+    const apiResponseTimestamp = new Date().toISOString();
+    console.log(`[API] Response sent at ${apiResponseTimestamp} (Status: 201 Created)`);
     res.status(201).json(task);
+
+    // 2. Emit 'task-created' event handled asynchronously by background listener
+    taskEvents.emit('task-created', {
+      ...task.toObject(),
+      userEmail: req.user.email,
+      apiResponseTimestamp
+    });
   } catch (error) {
     next(error);
   }
 });
 
-// PUT /tasks/:id: Updates MongoDB and invalidates both list and item cache
+// PUT /tasks/:id: Updates MongoDB and invalidates cache
 app.put('/tasks/:id', auth, validateTask, async (req, res, next) => {
   try {
     const task = await Task.findOneAndUpdate(
@@ -259,7 +282,6 @@ app.put('/tasks/:id', auth, validateTask, async (req, res, next) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    // Invalidate cache
     cache.del(`tasks_${req.user.id}`);
     cache.del(`task_${req.user.id}_${req.params.id}`);
     cacheMetrics.recordInvalidation();
@@ -270,7 +292,7 @@ app.put('/tasks/:id', auth, validateTask, async (req, res, next) => {
   }
 });
 
-// DELETE /tasks/:id: Removes from MongoDB and invalidates both list and item cache
+// DELETE /tasks/:id: Responds immediately, then emits 'task-deleted' event asynchronously (Practical 10)
 app.delete('/tasks/:id', auth, async (req, res, next) => {
   try {
     const task = await Task.findOneAndDelete({
@@ -282,12 +304,21 @@ app.delete('/tasks/:id', auth, async (req, res, next) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    // Invalidate cache
     cache.del(`tasks_${req.user.id}`);
     cache.del(`task_${req.user.id}_${req.params.id}`);
     cacheMetrics.recordInvalidation();
 
+    const apiResponseTimestamp = new Date().toISOString();
+    console.log(`[API] Delete response sent at ${apiResponseTimestamp} (Status: 200 OK)`);
     res.json({ message: 'Task deleted successfully' });
+
+    // Practical 10 Supplementary Requirement: Emit 'task-deleted' event
+    taskEvents.emit('task-deleted', {
+      id: req.params.id,
+      title: task.title,
+      userEmail: req.user.email,
+      apiResponseTimestamp
+    });
   } catch (error) {
     next(error);
   }
@@ -319,7 +350,7 @@ const startServer = async () => {
   const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/taskdb';
   await mongoose.connect(mongoUri);
   console.log('MongoDB connected');
-  app.listen(port, () => console.log(`Task API with caching listening on port ${port}`));
+  app.listen(port, () => console.log(`Task API with EventEmitter listening on port ${port}`));
 };
 
 startServer().catch((error) => {

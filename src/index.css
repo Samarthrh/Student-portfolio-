@@ -1262,6 +1262,79 @@ button {
   justify-content: flex-end;
 }
 
+/* Event-Driven Architecture Log Styles (Practical 10) */
+.events-log-box {
+  grid-column: 1 / -1;
+  background: #f8fafc;
+}
+
+.events-stream-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.event-stream-item {
+  background: white;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #6366f1;
+}
+
+.event-stream-item.event-task-created {
+  border-left-color: #10b981;
+}
+
+.event-stream-item.event-task-deleted {
+  border-left-color: #ef4444;
+}
+
+.event-stream-item.event-error {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+
+.event-stream-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.event-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #4338ca;
+}
+
+.event-time {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.event-stream-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.empty-state-mini {
+  padding: 1.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  background: white;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+}
+
+
 
 
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getCacheStats, flushCache } from '../api';
+import { getCacheStats, flushCache, getEventLogs } from '../api';
 
 function TaskAnalytics({ tasks = [] }) {
   const total = tasks.length;
@@ -15,19 +15,26 @@ function TaskAnalytics({ tasks = [] }) {
   const medPct = total > 0 ? Math.round((mediumPriority / total) * 100) : 0;
   const lowPct = total > 0 ? Math.round((lowPriority / total) * 100) : 0;
 
-  // Cache stats state (Practical 9 Supplementary Problem)
+  // Cache stats state (Practical 9)
   const [cacheData, setCacheData] = useState(null);
   const [flushing, setFlushing] = useState(false);
 
-  const fetchStats = useCallback(() => {
+  // Background events state (Practical 10)
+  const [eventsList, setEventsList] = useState([]);
+
+  const fetchStatsAndEvents = useCallback(() => {
     getCacheStats()
       .then((data) => setCacheData(data))
+      .catch(() => {});
+
+    getEventLogs()
+      .then((data) => setEventsList(data.events || []))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+    fetchStatsAndEvents();
+  }, [fetchStatsAndEvents]);
 
   const handleFlushCache = async () => {
     setFlushing(true);
@@ -134,7 +141,7 @@ function TaskAnalytics({ tasks = [] }) {
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              onClick={fetchStats}
+              onClick={fetchStatsAndEvents}
             >
               🔄 Refresh Stats
             </button>
@@ -146,6 +153,47 @@ function TaskAnalytics({ tasks = [] }) {
             >
               {flushing ? 'Flushing...' : '🗑️ Flush Cache'}
             </button>
+          </div>
+        </div>
+
+        {/* Practical 10: Asynchronous Event-Driven Architecture Log */}
+        <div className="analytics-box events-log-box">
+          <div className="analytics-metric-title">
+            <span>📡 Asynchronous Event Stream (Node.js EventEmitter)</span>
+            <strong>{eventsList.length} Background Events</strong>
+          </div>
+          <p className="subtext" style={{ margin: '0.25rem 0 0.85rem' }}>
+            Non-blocking background events processed asynchronously after API response
+          </p>
+
+          <div className="events-stream-list">
+            {eventsList.length > 0 ? (
+              eventsList.slice(0, 4).map((evt) => (
+                <div key={evt.id} className={`event-stream-item event-${evt.event}`}>
+                  <div className="event-stream-header">
+                    <span className="event-badge">{evt.event}</span>
+                    <span className="event-time">
+                      {evt.completedTime
+                        ? new Date(evt.completedTime).toLocaleTimeString()
+                        : new Date(evt.recordedAt).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <p className="event-stream-desc">
+                    {evt.event === 'error' ? (
+                      <span className="text-danger">⚠️ {evt.error}</span>
+                    ) : (
+                      <>
+                        <strong>{evt.title}</strong> — {evt.note || 'Processed asynchronously'}
+                      </>
+                    )}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="empty-state-mini">
+                No background events logged yet. Create or delete a task to trigger events!
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -143,4 +143,10 @@ export const flushCache = () => {
   }).then(handleResponse);
 };
 
+/* Asynchronous EventEmitter Logs (Practical 10) */
+
+export const getEventLogs = () => {
+  return fetch(`${BASE_URL}/events/log`).then(handleResponse);
+};
+
 export { BASE_URL };
