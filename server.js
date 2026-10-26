@@ -8,6 +8,7 @@ import Task from './models/Task.js';
 import User from './models/User.js';
 import auth from './middleware/auth.js';
 import { validateTask, validateRegister, validateLogin } from './middleware/validate.js';
+import cache, { cacheMetrics } from './cache.js';
 
 dotenv.config();
 
@@ -24,7 +25,30 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    auth: 'enabled'
+    auth: 'enabled',
+    caching: 'node-cache (TTL: 60s)'
+  });
+});
+
+/* ==========================================================================
+   Cache Debug & Statistics Endpoints (Practical 9 Supplementary Problem)
+   ========================================================================== */
+
+// 1. Get cache hit/miss statistics and active keys
+app.get('/cache/stats', (req, res) => {
+  res.json({
+    ...cacheMetrics.getStats(),
+    ttlSeconds: 60,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 2. Flush in-memory cache manually for testing
+app.post('/cache/flush', (req, res) => {
+  cacheMetrics.reset();
+  res.json({
+    message: 'Cache successfully flushed and metrics reset',
+    stats: cacheMetrics.getStats()
   });
 });
 
@@ -38,22 +62,18 @@ app.post('/register', validateRegister, async (req, res, next) => {
     const { email, password } = req.body;
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(400).json({ error: 'User already exists with this email address' });
     }
 
-    // Hash password with bcrypt (10 salt rounds)
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Save user to MongoDB
     const user = await User.create({
       email: normalizedEmail,
       password: hashedPassword
     });
 
-    // Sign JWT token with 1 hour expiration
     const token = jwt.sign(
       { id: user._id, email: user.email },
       jwtSecret,
@@ -80,19 +100,16 @@ app.post('/login', validateLogin, async (req, res, next) => {
     const { email, password } = req.body;
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Find user in database
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Compare provided password with hashed password in database
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Generate JWT token
     const token = jwt.sign(
       { id: user._id, email: user.email },
       jwtSecret,
@@ -134,24 +151,58 @@ app.get('/me', auth, async (req, res, next) => {
 });
 
 /* ==========================================================================
-   Protected Task Routes (JWT Middleware Pipeline)
+   Protected Task Routes with In-Memory Caching (Practical 9)
    ========================================================================== */
 
-// All task routes require valid JWT authentication
+// GET /tasks: Checks cache first (TTL 60s); queries DB on cache MISS
 app.get('/tasks', auth, async (req, res, next) => {
   try {
+    const cacheKey = `tasks_${req.user.id}`;
+    const bypassCache = req.headers['x-no-cache'] === 'true' || req.query.nocache === 'true';
+
+    // 1. Check cache (HIT)
+    if (!bypassCache) {
+      const cachedTasks = cache.get(cacheKey);
+      if (cachedTasks) {
+        cacheMetrics.recordHit();
+        res.set('X-Cache', 'HIT');
+        return res.json(cachedTasks);
+      }
+    }
+
+    // 2. Cache MISS: Query MongoDB
+    cacheMetrics.recordMiss();
     const tasks = await Task.find({
       $or: [{ user: req.user.id }, { user: null }, { user: { $exists: false } }]
     }).sort({ createdAt: -1 });
 
+    // 3. Store in cache with 60-second TTL
+    cache.set(cacheKey, tasks);
+    cacheMetrics.recordWrite();
+
+    res.set('X-Cache', bypassCache ? 'BYPASS' : 'MISS');
     res.json(tasks);
   } catch (error) {
     next(error);
   }
 });
 
+// GET /tasks/:id: Cached separately from all-tasks list (Supplementary Problem 1)
 app.get('/tasks/:id', auth, async (req, res, next) => {
   try {
+    const cacheKey = `task_${req.user.id}_${req.params.id}`;
+    const bypassCache = req.headers['x-no-cache'] === 'true' || req.query.nocache === 'true';
+
+    if (!bypassCache) {
+      const cachedTask = cache.get(cacheKey);
+      if (cachedTask) {
+        cacheMetrics.recordHit();
+        res.set('X-Cache', 'HIT');
+        return res.json(cachedTask);
+      }
+    }
+
+    cacheMetrics.recordMiss();
     const task = await Task.findOne({
       _id: req.params.id,
       $or: [{ user: req.user.id }, { user: null }, { user: { $exists: false } }]
@@ -161,24 +212,35 @@ app.get('/tasks/:id', auth, async (req, res, next) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
+    cache.set(cacheKey, task);
+    cacheMetrics.recordWrite();
+
+    res.set('X-Cache', bypassCache ? 'BYPASS' : 'MISS');
     res.json(task);
   } catch (error) {
     next(error);
   }
 });
 
+// POST /tasks: Writes to MongoDB and invalidates cached all-tasks
 app.post('/tasks', auth, validateTask, async (req, res, next) => {
   try {
     const task = await Task.create({
       ...req.body,
       user: req.user.id
     });
+
+    // Invalidate cached tasks list for this user
+    cache.del(`tasks_${req.user.id}`);
+    cacheMetrics.recordInvalidation();
+
     res.status(201).json(task);
   } catch (error) {
     next(error);
   }
 });
 
+// PUT /tasks/:id: Updates MongoDB and invalidates both list and item cache
 app.put('/tasks/:id', auth, validateTask, async (req, res, next) => {
   try {
     const task = await Task.findOneAndUpdate(
@@ -197,12 +259,18 @@ app.put('/tasks/:id', auth, validateTask, async (req, res, next) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
+    // Invalidate cache
+    cache.del(`tasks_${req.user.id}`);
+    cache.del(`task_${req.user.id}_${req.params.id}`);
+    cacheMetrics.recordInvalidation();
+
     res.json(task);
   } catch (error) {
     next(error);
   }
 });
 
+// DELETE /tasks/:id: Removes from MongoDB and invalidates both list and item cache
 app.delete('/tasks/:id', auth, async (req, res, next) => {
   try {
     const task = await Task.findOneAndDelete({
@@ -213,6 +281,11 @@ app.delete('/tasks/:id', auth, async (req, res, next) => {
     if (!task) {
       return res.status(404).json({ error: 'Task not found' });
     }
+
+    // Invalidate cache
+    cache.del(`tasks_${req.user.id}`);
+    cache.del(`task_${req.user.id}_${req.params.id}`);
+    cacheMetrics.recordInvalidation();
 
     res.json({ message: 'Task deleted successfully' });
   } catch (error) {
@@ -246,7 +319,7 @@ const startServer = async () => {
   const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/taskdb';
   await mongoose.connect(mongoUri);
   console.log('MongoDB connected');
-  app.listen(port, () => console.log(`Task API with JWT auth listening on port ${port}`));
+  app.listen(port, () => console.log(`Task API with caching listening on port ${port}`));
 };
 
 startServer().catch((error) => {

@@ -131,4 +131,16 @@ export const deleteTask = (id) => {
   }).then(handleResponse);
 };
 
+/* In-Memory Caching Debug Calls (Practical 9) */
+
+export const getCacheStats = () => {
+  return fetch(`${BASE_URL}/cache/stats`).then(handleResponse);
+};
+
+export const flushCache = () => {
+  return fetch(`${BASE_URL}/cache/flush`, {
+    method: 'POST'
+  }).then(handleResponse);
+};
+
 export { BASE_URL };

@@ -1206,5 +1206,62 @@ button {
   font-weight: 600;
 }
 
+/* Cache Monitor Box (Practical 9) */
+.cache-stats-box {
+  grid-column: 1 / -1;
+  background: #f1f5f9;
+}
+
+.cache-stats-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.85rem;
+  margin: 1rem 0;
+}
+
+.cache-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: white;
+  padding: 0.75rem 0.5rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.cache-stat-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.cache-stat-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.text-success {
+  color: #10b981;
+}
+
+.text-warning {
+  color: #f59e0b;
+}
+
+.text-info {
+  color: #3b82f6;
+}
+
+.text-danger {
+  color: #ef4444;
+}
+
+.cache-actions-row {
+  display: flex;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+
 
 
