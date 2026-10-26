@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import {
   getTasks,
   createTask,
@@ -15,6 +15,9 @@ import Loading from '../components/Loading';
 import ErrorDisplay from '../components/Error';
 import Toast from '../components/Toast';
 import ConfirmModal from '../components/ConfirmModal';
+
+// Practical 8 Supplementary Problem: Lazy-load heavy analytics component on demand
+const TaskAnalytics = lazy(() => import('../components/TaskAnalytics'));
 
 function Projects() {
   // Authentication states (Practical 7)
@@ -35,6 +38,7 @@ function Projects() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Create form state
   const [newTitle, setNewTitle] = useState('');
@@ -381,6 +385,32 @@ function Projects() {
               <span className="stat-label">Pending</span>
             </div>
           </div>
+        )}
+
+        {/* Practical 8 Supplementary Problem: On-demand Lazy-Loaded Analytics */}
+        {currentUser && (
+          <div className="analytics-toggle-bar">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setShowAnalytics((prev) => !prev)}
+            >
+              {showAnalytics ? '▲ Hide Analytics' : '📊 Show Analytics & Metrics (Lazy Chunk)'}
+            </button>
+          </div>
+        )}
+
+        {currentUser && showAnalytics && (
+          <Suspense
+            fallback={
+              <div className="card analytics-card fallback-placeholder">
+                <div className="route-spinner" aria-hidden="true"></div>
+                <p>Loading TaskAnalytics chunk on demand...</p>
+              </div>
+            }
+          >
+            <TaskAnalytics tasks={tasks} />
+          </Suspense>
         )}
       </section>
 
