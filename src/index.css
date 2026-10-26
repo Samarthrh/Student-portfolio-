@@ -880,3 +880,331 @@ button {
   gap: 0.75rem;
 }
 
+/* ==========================================================================
+   Practical 7: Authentication & Middleware UI Styles
+   ========================================================================== */
+
+.hero-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: white;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.user-avatar {
+  font-size: 1.1rem;
+}
+
+.user-email {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.btn-logout {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.btn-logout:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.auth-card {
+  padding: 2.25rem;
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.auth-header h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: #0f172a;
+}
+
+.auth-tabs {
+  display: flex;
+  background: #f1f5f9;
+  padding: 0.35rem;
+  border-radius: 14px;
+  margin-top: 1.25rem;
+  gap: 0.35rem;
+}
+
+.auth-tab {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.auth-tab.active {
+  background: white;
+  color: #4338ca;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.auth-actions {
+  margin-top: 0.75rem;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.field-error-text {
+  font-size: 0.8rem;
+  color: #dc2626;
+  font-weight: 600;
+  margin-top: 0.2rem;
+}
+
+/* ==========================================================================
+   Practical 8: Performance Optimization, Suspense & Lazy Loading Styles
+   ========================================================================== */
+
+.route-fallback-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 50vh;
+}
+
+.route-fallback-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 3rem 2.5rem;
+  max-width: 460px;
+  width: 100%;
+}
+
+.route-fallback-card h2 {
+  font-size: 1.35rem;
+  margin: 1rem 0 0.4rem;
+  color: #1e293b;
+}
+
+.route-spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.route-fallback-bar {
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  margin-top: 1.5rem;
+  overflow: hidden;
+}
+
+.route-fallback-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #a855f7);
+  width: 50%;
+  border-radius: 999px;
+  animation: shimmer 1.2s infinite ease-in-out;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+/* Analytics Component Styles */
+.analytics-toggle-bar {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.analytics-card {
+  padding: 1.75rem;
+  margin-top: 1.25rem;
+  background: white;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 20px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.analytics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.analytics-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #0f172a;
+}
+
+.badge-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #ede9fe;
+  color: #6d28d9;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #ddd6fe;
+}
+
+.analytics-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.analytics-box {
+  background: #f8fafc;
+  padding: 1.25rem;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.analytics-metric-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.analytics-metric-title strong {
+  font-size: 1.15rem;
+  color: #1e293b;
+}
+
+.progress-track {
+  width: 100%;
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 999px;
+  transition: width 400ms ease;
+}
+
+.stacked-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+  background: #e2e8f0;
+}
+
+.stacked-slice {
+  height: 100%;
+  transition: width 400ms ease;
+}
+
+.slice-high {
+  background: #ef4444;
+}
+
+.slice-medium {
+  background: #f59e0b;
+}
+
+.slice-low {
+  background: #10b981;
+}
+
+.analytics-legend {
+  display: flex;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dot-high {
+  color: #dc2626;
+}
+
+.dot-med {
+  color: #d97706;
+}
+
+.dot-low {
+  color: #059669;
+}
+
+.fallback-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem;
+  color: #6366f1;
+  font-weight: 600;
+}
+
+
+
