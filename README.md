@@ -1,159 +1,122 @@
-# Student Portfolio & Full-Stack Task Manager
+# Student Portfolio & Full-Stack Task Management Platform
 
-A full-stack web application integrating a modern **React (Vite)** frontend with an **Express.js** REST API backend and **MongoDB (Mongoose)** database.
+A high-performance full-stack web application featuring **React 19 (Vite)**, **React Router 7**, **Express.js**, **MongoDB (Mongoose)**, **bcrypt** password hashing, **JWT authentication pipeline**, **route-based code splitting**, **in-memory caching (`node-cache`)**, and **asynchronous event-driven architecture using Node.js native `EventEmitter`**.
 
 > **Course**: Advanced Web Development Frameworks (ITUE301)  
-> **Practical 6**: Full Stack Integration React + Node + MongoDB  
+> **Practical 10**: Asynchronous Processing with Event-Driven Architecture  
 > **Student**: Samarth Rojara  
 
 ---
 
-## 🏛️ System Architecture
+## 🏛️ System Architecture: Event-Driven Background Processing
 
 ```text
-React Frontend (localhost:5173)
+POST /tasks (or DELETE /tasks/:id) Request
        │
-       │ HTTP / CORS fetch calls (via src/api.js)
        ▼
-Express.js Backend (localhost:5001)
+ 1. Write Task to MongoDB Database
        │
-       │ Mongoose ODM
        ▼
-MongoDB Database (localhost:27017 or Atlas Cluster)
+ 2. Invalidate In-Memory Cache (node-cache)
+       │
+       ▼
+ 3. res.status(201).json(task) ──► API Responds Immediately (~3.3 ms)
+       │
+       ▼
+ 4. taskEvents.emit('task-created', taskData) (Asynchronous Decoupled Event)
+       │
+       ▼ (Handled in background without blocking client)
+ [Notification Listener (listeners.js)]
+       ├── Logs task title, user, priority, and timestamps
+       ├── Simulates slow email/webhook delivery (1500ms delay)
+       └── Appends audit log to in-memory event stream (GET /events/log)
 ```
-
-**Flow of Execution**:
-1. User interacts with UI (e.g., adds, updates, or deletes a task).
-2. Optimistic UI update or action status immediately reflects in React state.
-3. Central `src/api.js` issues a CORS-enabled fetch request to Express (`/tasks`).
-4. Express validates and executes Mongoose operations on the MongoDB database.
-5. React receives the persistent document or acknowledgment, syncing server state.
-6. A toast notification provides instant feedback (success/error).
 
 ---
 
-## 🚀 Running the Project Locally
+## ⏱️ Console Proof of Non-Blocking Asynchronous Timing
 
-Two servers run concurrently: the Express backend on port `5001` and the React Vite dev server on port `5173`.
+Recorded live during automated endpoint verification:
 
-### 1. Prerequisites
-- **Node.js**: v18+
-- **npm**: v9+
-- **MongoDB**: Local MongoDB instance (`mongod` on `mongodb://127.0.0.1:27017`) or a MongoDB Atlas connection string.
-
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env`:
-
-```bash
-cp .env.example .env
+```text
+[API] Response sent at:           2026-10-26T09:21:58.344Z (Status: 201 Created)
+[Event Triggered] 'task-created': 2026-10-26T09:21:58.345Z
+[Client Received Response]:       3.36 ms (Instant HTTP response)
+   ... (Client continues browsing while background worker processes) ...
+[Background Notification Done]:   2026-10-26T09:21:59.846Z (+1502 ms after response sent)
 ```
 
-Ensure `.env` contains:
-```env
-MONGO_URI=mongodb://127.0.0.1:27017/taskdb
-PORT=5001
-VITE_API_URL=http://localhost:5001
-```
-
-*(Note: Port 5001 is used because port 5000 is reserved on macOS by the AirPlay Receiver / ControlCenter service).*
-
-### 3. Start the Backend API (Terminal 1)
-```bash
-npm run server
-```
-- Listens on `http://localhost:5001`
-- Verifies MongoDB connection on startup.
-- Health check available at: `http://localhost:5001/health`
-
-### 4. Start the React Frontend (Terminal 2)
-```bash
-npm run dev
-```
-- Available at `http://localhost:5173`
-- Navigate to the **Tasks (Full-Stack)** tab in the navigation bar.
+> **Observation**: The client receives HTTP `201 Created` in **3.36 ms**. The heavy notification work executes in the background and finishes **1.5 seconds later**, with zero delay perceived by the end user!
 
 ---
 
-## 📡 REST API Reference
+## 🛠️ Key Implementation Details (Practical 10)
 
-The backend provides complete CRUD endpoints for task management:
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/health` | Check API and database connectivity status |
-| `GET` | `/tasks` | Retrieve all tasks sorted by creation date (newest first) |
-| `GET` | `/tasks/:id` | Retrieve single task by its MongoDB ObjectId |
-| `POST` | `/tasks` | Create a new task in MongoDB |
-| `PUT` | `/tasks/:id` | Update an existing task (title, description, priority, completed) |
-| `DELETE` | `/tasks/:id` | Delete a task permanently from MongoDB |
-
-### Task Schema & Payload Example
-
-```json
-{
-  "title": "Complete Full Stack Integration",
-  "description": "Connect React UI with Express and MongoDB with CRUD operations",
-  "priority": "high",
-  "completed": false
-}
-```
-
-- `title`: String (required, auto-trimmed via schema pre-save hook)
-- `description`: String (optional)
-- `priority`: Enum: `['low', 'medium', 'high']` (defaults to `'medium'`)
-- `completed`: Boolean (defaults to `false`)
-- `createdAt`: Date (defaults to `Date.now`)
-
----
-
-## ✨ Features Implemented (Practical 6)
-
-1. **Central API Client (`src/api.js`)**:
-   - Centralized Axios/fetch abstraction with `BASE_URL`.
-   - Comprehensive error parsing and response status verification.
-2. **CORS Configuration**:
-   - Express server enabled with `cors()` middleware before route definitions, preventing cross-origin browser blocking.
-3. **Full CRUD Operations in React UI**:
-   - **Create**: Intuitive form to create tasks with title, description, and priority level.
-   - **Read**: Live task list with counts for total, completed, and pending tasks.
-   - **Update**: One-click completion status toggle and in-place edit mode for task details.
-   - **Delete**: Task removal with confirmation.
-4. **Optimistic UI Updates**:
-   - When creating a task, it appears in the UI instantly before the server response returns, giving zero perceived latency.
-   - If the server write succeeds, the temporary placeholder is replaced with the MongoDB record. If it fails, the change is automatically rolled back.
-5. **Confirmation Dialog Modal**:
-   - Prevents accidental deletion by prompting the user with an accessible confirmation dialog before calling `DELETE /tasks/:id`.
-6. **Toast Notification System**:
-   - Non-intrusive notification popups appear for create, update, and delete actions with auto-dismissal.
-7. **Search & Multi-Filter Controls**:
-   - Filter tasks in real time by search keywords, completion status (All / Pending / Completed), and priority level (All / High / Medium / Low).
-8. **Loading & Error States**:
-   - Visual loading indicators with spinners on initial load and during asynchronous operations.
-   - User-friendly error banners with retry buttons on network failure.
+1. **Dedicated EventEmitter Module (`events.js`)**:
+   - Subclassed Node.js native `EventEmitter`.
+   - Exported a shared singleton instance `taskEvents` with extended listener capacity (`setMaxListeners(25)`).
+2. **Decoupled Background Listeners (`listeners.js`)**:
+   - **`task-created`**: Emitted upon task creation. Simulates asynchronous email/Slack dispatch with a 1.5s delay.
+   - **`task-deleted` (Supplementary 1)**: Emitted upon task deletion. Simulates background archival and analytics recording.
+   - **`error` (Supplementary 2)**: Catches and logs errors thrown within event handlers, preventing unhandled error exceptions from crashing the server process.
+3. **Decoupled Route Handlers (`server.js`)**:
+   - `POST /tasks`: Saves task, invalidates cache, transmits HTTP `201 Created` immediately, and emits `task-created`.
+   - `DELETE /tasks/:id`: Deletes task, invalidates cache, transmits HTTP `200 OK` immediately, and emits `task-deleted`.
+4. **Event Audit Log & Debug Endpoint (`GET /events/log`)**:
+   - Returns a history of all background events with their trigger time, completion time, payload details, and delivery status.
+5. **Frontend Event Stream Monitor (`src/components/TaskAnalytics.jsx`)**:
+   - Displays real-time background event stream cards directly inside the web UI with live event badges (`task-created`, `task-deleted`, `error`).
 
 ---
 
 ## 📝 Analysis & Key Questions (Viva / Rubric)
 
-### 1. What changes are required on the backend (CORS) to allow the React dev server to call the Express API?
-Browsers enforce the **Same-Origin Policy (SOP)** for security. Since the React development server runs on `http://localhost:5173` and Express runs on `http://localhost:5001`, they have different origins (different ports). Without Cross-Origin Resource Sharing (CORS) headers, the browser blocks responses to fetch requests from reaching the frontend JavaScript.  
-**Fix**: Install `cors` package and mount `app.use(cors())` before any routes in Express, which adds `Access-Control-Allow-Origin: *` to response headers.
+### 1. Why does emitting an event not block the API response, even though both run on the same Node.js process?
+* Node.js operates on a single-threaded **Event Loop**.
+* When `res.status(201).json(task)` is called, Express flushes the HTTP response headers and body down the network socket to the client immediately.
+* Inside the listener, background side-effects (like timers, network I/O, database writes, or email dispatches) use asynchronous non-blocking APIs (e.g. `setTimeout`, `fetch`, or promises). These tasks are offloaded to Node's libuv thread pool or system kernel, freeing the main thread to complete the HTTP cycle instantly.
 
-### 2. Why should the UI re-fetch or update local state after a successful POST/PUT/DELETE rather than assuming success silently?
-Assuming success silently without synchronizing with the backend introduces discrepancies between the client view and the database truth:
-- MongoDB generates authoritative metadata (such as the unique `_id`, default values, timestamps `createdAt`, and validation rules).
-- If the network drops or the server rejects an invalid write, silent assumption leaves ghost data on the screen that disappears upon browser refresh.
-- Updating local state using the server's confirmed response (or rollback on error) guarantees data integrity.
+### 2. What would happen to API response time if the notification logic were placed directly inside the POST route instead of in an event handler?
+* If the notification logic (e.g., waiting 1.5 seconds for a third-party SMTP server or webhook) were written sequentially inside the route handler before `res.json()`:
+  - The client would be forced to wait **1,500ms + database query time** before receiving a response.
+  - Slow external services or network timeouts would directly delay the user's interface.
+  - Server throughput would drop dramatically as concurrent requests queue up waiting for slow external I/O.
+* Using an event-driven architecture keeps API response times at **~3ms**.
 
-### 3. What is the risk of not handling errors on write operations (POST/PUT/DELETE) the same way as read operations (GET)?
-If read operations fail, users typically see an error banner or empty state. If a write operation (e.g. creating or deleting an item) fails silently:
-- The user believes their action succeeded (e.g., that an important task was saved or sensitive data was deleted).
-- Upon page refresh or navigating away, the changes vanish or deleted records reappear, leading to frustration, lost work, or corrupted workflows.
-- Handling write errors ensures users receive clear notifications (e.g., toast alerts or error banners) and allows them to retry.
+### 3. Why is EventEmitter a reasonable choice for this scale of application, but not for a production system handling millions of events per day?
+* **Why EventEmitter Works Well Here**:
+  - Built directly into the Node.js standard library with zero external dependencies.
+  - Ultra-fast in-memory dispatch with negligible CPU overhead for single-instance applications.
+* **Why It Fails at High Production Scale**:
+  - **No Persistence**: Events exist solely in process RAM. If the Node.js process crashes, restarts, or restarts on deployment, all in-flight events are permanently lost.
+  - **No Retries or Backoff**: If an email provider fails, `EventEmitter` cannot automatically retry with exponential backoff or dead-letter queues.
+  - **No Multi-Server Distribution**: In a clustered environment with multiple instances behind a load balancer, events cannot be shared across servers.
+  - **Memory Pressure**: Unbounded events under heavy spikes can exhaust Node's heap memory.
+  - *Production Solution*: At enterprise scale, dedicated message brokers like **RabbitMQ**, **Apache Kafka**, or Redis-backed queues (**BullMQ**) provide persistence, distributed consumption, rate limiting, and guaranteed delivery.
 
 ---
 
-## 🛠️ Build & Linting
+## 🚀 Running the Project Locally
+
+### 1. Start Express Backend API
+```bash
+npm run server
+```
+*Listens on `http://localhost:5001` with MongoDB connected, caching active, and EventEmitter listening.*
+
+### 2. Start Frontend Dev Server
+```bash
+npm run dev
+```
+*Available at `http://localhost:5173`. Navigate to **Tasks (JWT Auth)**.*
+
+### 3. Inspecting Background Event Stream
+* Open `http://localhost:5001/events/log` in your browser or Postman to view recent background events.
+* In the web UI, click **"📊 Show Analytics & Metrics"** to observe live event stream cards!
+
+---
+
+## 🛠️ Build & Verification
 
 ```bash
 # Production bundle
