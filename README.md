@@ -1,164 +1,139 @@
-# Student Portfolio & Full-Stack Task Manager
+# Student Portfolio & Full-Stack Task Management Platform
 
-A full-stack web application integrating a modern **React (Vite)** frontend with an **Express.js** REST API backend and **MongoDB (Mongoose)** database.
+A modern full-stack web application featuring **React 19 (Vite)**, **React Router 7**, **Express.js**, **MongoDB (Mongoose)**, **bcrypt** password hashing, **JWT authentication pipeline**, **route-based code splitting**, **in-memory caching (`node-cache`)**, **asynchronous event-driven architecture**, and **complete containerization with Docker & Docker Compose**.
 
 > **Course**: Advanced Web Development Frameworks (ITUE301)  
-> **Practical 6**: Full Stack Integration React + Node + MongoDB  
+> **Practical 11**: Containerization with Docker and Docker Compose  
 > **Student**: Samarth Rojara  
 
 ---
 
-## 🏛️ System Architecture
+## 🏛️ System Architecture: Multi-Container Docker Orchestration
 
 ```text
-React Frontend (localhost:5173)
-       │
-       │ HTTP / CORS fetch calls (via src/api.js)
-       ▼
-Express.js Backend (localhost:5001)
-       │
-       │ Mongoose ODM
-       ▼
-MongoDB Database (localhost:27017 or Atlas Cluster)
+                     docker-compose.yml
+                             │
+            ┌────────────────┼────────────────┐
+            ▼                ▼                ▼
+   ┌─────────────────┐ ┌───────────────┐ ┌────────────────┐
+   │ task-frontend   │ │ task-backend  │ │ task-mongo     │
+   │ (React Vite)    │ │ (Node/Express)│ │ (MongoDB 7.0)  │
+   │ Port: 5173      │ │ Port: 5001    │ │ Port: 27017    │
+   └────────┬────────┘ └───────┬───────┘ └───────┬────────┘
+            │                  │                 │
+            └───────────┬──────┴─────────────────┘
+                        ▼
+            [app-network (Bridge)]
+      (Inter-container service name DNS)
+            frontend ──► backend:5001 ──► mongodb:27017
+                                                 │
+                                                 ▼
+                                        [Volume: mongo-data]
+                                     (Persistent Database Storage)
 ```
-
-**Flow of Execution**:
-1. User interacts with UI (e.g., adds, updates, or deletes a task).
-2. Optimistic UI update or action status immediately reflects in React state.
-3. Central `src/api.js` issues a CORS-enabled fetch request to Express (`/tasks`).
-4. Express validates and executes Mongoose operations on the MongoDB database.
-5. React receives the persistent document or acknowledgment, syncing server state.
-6. A toast notification provides instant feedback (success/error).
 
 ---
 
-## 🚀 Running the Project Locally
+## 🐳 Docker Services & Configuration
 
-Two servers run concurrently: the Express backend on port `5001` and the React Vite dev server on port `5173`.
+The application is orchestrated into 3 isolated containers communicating across a shared bridge network (`app-network`):
 
-### 1. Prerequisites
-- **Node.js**: v18+
-- **npm**: v9+
-- **MongoDB**: Local MongoDB instance (`mongod` on `mongodb://127.0.0.1:27017`) or a MongoDB Atlas connection string.
-
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env`:
-
-```bash
-cp .env.example .env
-```
-
-Ensure `.env` contains:
-```env
-MONGO_URI=mongodb://127.0.0.1:27017/taskdb
-PORT=5001
-VITE_API_URL=http://localhost:5001
-```
-
-*(Note: Port 5001 is used because port 5000 is reserved on macOS by the AirPlay Receiver / ControlCenter service).*
-
-### 3. Start the Backend API (Terminal 1)
-```bash
-npm run server
-```
-- Listens on `http://localhost:5001`
-- Verifies MongoDB connection on startup.
-- Health check available at: `http://localhost:5001/health`
-
-### 4. Start the React Frontend (Terminal 2)
-```bash
-npm run dev
-```
-- Available at `http://localhost:5173`
-- Navigate to the **Tasks (Full-Stack)** tab in the navigation bar.
+| Service | Container Name | Base Image / Build | Port Mapping | Storage / Notes |
+| :--- | :--- | :--- | :---: | :--- |
+| **`frontend`** | `task-manager-frontend` | `Dockerfile.frontend` (Multi-stage Node 18) | `5173:5173` | Built with Vite, served via `vite preview --host 0.0.0.0` |
+| **`backend`** | `task-manager-backend` | `Dockerfile.backend` (Node 18 Alpine) | `5001:5001` | Express API, connects to `mongodb://mongodb:27017/taskdb` |
+| **`mongodb`** | `task-manager-mongo` | `mongo:7.0` (Official Image) | `27017:27017` | Named volume `mongo-data` mounted at `/data/db` |
 
 ---
 
-## 📡 REST API Reference
+## 🚀 Running the Full Stack with a Single Command
 
-The backend provides complete CRUD endpoints for task management:
+### 1. Build and Start All Containers
+From the project root, start all 3 services simultaneously:
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/health` | Check API and database connectivity status |
-| `GET` | `/tasks` | Retrieve all tasks sorted by creation date (newest first) |
-| `GET` | `/tasks/:id` | Retrieve single task by its MongoDB ObjectId |
-| `POST` | `/tasks` | Create a new task in MongoDB |
-| `PUT` | `/tasks/:id` | Update an existing task (title, description, priority, completed) |
-| `DELETE` | `/tasks/:id` | Delete a task permanently from MongoDB |
+```bash
+docker compose up --build
+```
+*(or `docker-compose up --build` for Docker Compose v1)*
 
-### Task Schema & Payload Example
+### 2. Verify Running Containers
+Check that all 3 services are active and healthy:
 
-```json
-{
-  "title": "Complete Full Stack Integration",
-  "description": "Connect React UI with Express and MongoDB with CRUD operations",
-  "priority": "high",
-  "completed": false
-}
+```bash
+docker ps
 ```
 
-- `title`: String (required, auto-trimmed via schema pre-save hook)
-- `description`: String (optional)
-- `priority`: Enum: `['low', 'medium', 'high']` (defaults to `'medium'`)
-- `completed`: Boolean (defaults to `false`)
-- `createdAt`: Date (defaults to `Date.now`)
+Expected output:
+```text
+CONTAINER ID   IMAGE                    COMMAND                  STATUS         PORTS                     NAMES
+a1b2c3d4e5f6   student-portfolio-fe     "npm run preview..."    Up 2 minutes   0.0.0.0:5173->5173/tcp    task-manager-frontend
+b2c3d4e5f6a1   student-portfolio-be     "node server.js"         Up 2 minutes   0.0.0.0:5001->5001/tcp    task-manager-backend
+c3d4e5f6a1b2   mongo:7.0                "docker-entrypoint..."   Up 2 minutes   0.0.0.0:27017->27017/tcp  task-manager-mongo
+```
+
+### 3. Accessing the Application
+* **Frontend Application**: `http://localhost:5173`
+* **Backend REST API**: `http://localhost:5001`
+* **Backend Health Check**: `http://localhost:5001/health`
+* **MongoDB Direct Connection**: `mongodb://localhost:27017/taskdb`
+
+### 4. Stop the Containers
+```bash
+docker compose down
+```
+*(To also wipe the database volume: `docker compose down -v`)*
 
 ---
 
-## ✨ Features Implemented (Practical 6)
+## 🛠️ Key Implementation Details (Practical 11)
 
-1. **Central API Client (`src/api.js`)**:
-   - Centralized Axios/fetch abstraction with `BASE_URL`.
-   - Comprehensive error parsing and response status verification.
-2. **CORS Configuration**:
-   - Express server enabled with `cors()` middleware before route definitions, preventing cross-origin browser blocking.
-3. **Full CRUD Operations in React UI**:
-   - **Create**: Intuitive form to create tasks with title, description, and priority level.
-   - **Read**: Live task list with counts for total, completed, and pending tasks.
-   - **Update**: One-click completion status toggle and in-place edit mode for task details.
-   - **Delete**: Task removal with confirmation.
-4. **Optimistic UI Updates**:
-   - When creating a task, it appears in the UI instantly before the server response returns, giving zero perceived latency.
-   - If the server write succeeds, the temporary placeholder is replaced with the MongoDB record. If it fails, the change is automatically rolled back.
-5. **Confirmation Dialog Modal**:
-   - Prevents accidental deletion by prompting the user with an accessible confirmation dialog before calling `DELETE /tasks/:id`.
-6. **Toast Notification System**:
-   - Non-intrusive notification popups appear for create, update, and delete actions with auto-dismissal.
-7. **Search & Multi-Filter Controls**:
-   - Filter tasks in real time by search keywords, completion status (All / Pending / Completed), and priority level (All / High / Medium / Low).
-8. **Loading & Error States**:
-   - Visual loading indicators with spinners on initial load and during asynchronous operations.
-   - User-friendly error banners with retry buttons on network failure.
+1. **Multi-Stage Frontend Dockerfile (`Dockerfile.frontend`)**:
+   - **Stage 1 (`build`)**: Installs dependencies and compiles the optimized production Vite bundle into `/app/dist`.
+   - **Stage 2 (`serve`)**: Copies only the built assets and minimal runtime files, significantly reducing the final image footprint.
+2. **Lean Backend Dockerfile (`Dockerfile.backend`)**:
+   - Uses `node:18-alpine` base image.
+   - Executes `npm install --omit=dev` to exclude development dependencies in the container image.
+3. **Build Context Optimization (`.dockerignore`)**:
+   - Excludes heavy local `node_modules`, sensitive `.env` files, build caches, and git metadata.
+   - Prevents host/container OS binary incompatibilities and speeds up build context transfer.
+4. **Persistent Named Volume (`mongo-data`)**:
+   - Configured in `docker-compose.yml` under `volumes: mongo-data:/data/db`.
+   - Ensures all user accounts, hashed credentials, and task records persist across container restarts, stops, and rebuilds.
+5. **Inter-Container Networking (`app-network`)**:
+   - Configures an internal Docker bridge network where Docker's embedded DNS resolves container service names (e.g. `mongodb` resolves to the MongoDB container's internal IP).
 
 ---
 
 ## 📝 Analysis & Key Questions (Viva / Rubric)
 
-### 1. What changes are required on the backend (CORS) to allow the React dev server to call the Express API?
-Browsers enforce the **Same-Origin Policy (SOP)** for security. Since the React development server runs on `http://localhost:5173` and Express runs on `http://localhost:5001`, they have different origins (different ports). Without Cross-Origin Resource Sharing (CORS) headers, the browser blocks responses to fetch requests from reaching the frontend JavaScript.  
-**Fix**: Install `cors` package and mount `app.use(cors())` before any routes in Express, which adds `Access-Control-Allow-Origin: *` to response headers.
+### 1. Why does the backend container need to reference the MongoDB container by its service name (e.g., `mongodb`) rather than `localhost`?
+* In Docker, each container has its own isolated network stack and private loopback interface (`localhost` / `127.0.0.1`).
+* If the backend container attempts to connect to `mongodb://localhost:27017`, it searches for MongoDB inside its *own* container filesystem, where MongoDB is not running.
+* When containers are joined to a user-defined Docker bridge network (`app-network`), Docker provides an automatic **embedded DNS server** that resolves container service names (like `mongodb` or `backend`) to their internal container IP addresses. Therefore, `mongodb://mongodb:27017/taskdb` correctly routes packets to the database container.
 
-### 2. Why should the UI re-fetch or update local state after a successful POST/PUT/DELETE rather than assuming success silently?
-Assuming success silently without synchronizing with the backend introduces discrepancies between the client view and the database truth:
-- MongoDB generates authoritative metadata (such as the unique `_id`, default values, timestamps `createdAt`, and validation rules).
-- If the network drops or the server rejects an invalid write, silent assumption leaves ghost data on the screen that disappears upon browser refresh.
-- Updating local state using the server's confirmed response (or rollback on error) guarantees data integrity.
+### 2. What is the difference between `EXPOSE` in a Dockerfile and the `ports` mapping in `docker-compose.yml`?
+* **`EXPOSE` (Dockerfile)**:
+  - Serves as internal documentation and metadata indicating which ports the containerized process listens on inside the container.
+  - It does **not** publish or bind the port to the host machine's network interface; host browsers cannot access an exposed port without port publishing.
+* **`ports` mapping (docker-compose.yml)**:
+  - Formatted as `HOST:CONTAINER` (e.g., `"5173:5173"` or `"5001:5001"`).
+  - Actively configures iptables/network routing rules on the host operating system, binding the host machine's port to the container's internal port so external traffic and host browsers can reach the container.
 
-### 3. What is the risk of not handling errors on write operations (POST/PUT/DELETE) the same way as read operations (GET)?
-If read operations fail, users typically see an error banner or empty state. If a write operation (e.g. creating or deleting an item) fails silently:
-- The user believes their action succeeded (e.g., that an important task was saved or sensitive data was deleted).
-- Upon page refresh or navigating away, the changes vanish or deleted records reappear, leading to frustration, lost work, or corrupted workflows.
-- Handling write errors ensures users receive clear notifications (e.g., toast alerts or error banners) and allows them to retry.
+### 3. Why is it considered bad practice to copy `node_modules` into a Docker image instead of running `npm install` inside the container?
+* **OS & CPU Architecture Incompatibility**: Native C/C++ compiled binaries (such as `fsevents`, `bcrypt`, or `esbuild`) built on a host OS (e.g., macOS ARM64 / Darwin) will crash with `Exec format error` or segmentation faults inside a Linux Alpine/Debian container.
+* **Bloated Build Context**: Local `node_modules` can be hundreds of megabytes in size, drastically slowing down Docker build context uploads to the daemon.
+* **Inconsistent Dependencies**: Running `npm install` inside the container ensures packages are resolved and compiled specifically for the container's target operating system, architecture, and Node.js version.
 
 ---
 
-## 🛠️ Build & Linting
+## 💻 Alternative: Running Locally without Docker
+
+If Docker is not running, the application can still be run locally:
 
 ```bash
-# Production bundle
-npm run build
+# Terminal 1: Backend
+npm run server
 
-# Run linter
-npm run lint
+# Terminal 2: Frontend
+npm run dev
 ```

@@ -1,0 +1,26 @@
+# ==============================================================================
+# Backend Dockerfile for Node/Express Task Management API (Practical 11)
+# ==============================================================================
+FROM node:18-alpine
+
+# Set working directory inside the container
+WORKDIR /app
+
+# Copy package dependency manifests
+COPY package*.json ./
+
+# Install only production dependencies for a leaner image
+RUN npm install --omit=dev
+
+# Copy application backend source code
+COPY . .
+
+# Set default production environment variables
+ENV NODE_ENV=production
+ENV PORT=5001
+
+# Document container port
+EXPOSE 5001
+
+# Start the Express server
+CMD ["node", "server.js"]
