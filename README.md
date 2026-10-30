@@ -2,127 +2,151 @@
 
 [![CI Pipeline](https://github.com/Samarthrh/Student-portfolio-/actions/workflows/ci.yml/badge.svg)](https://github.com/Samarthrh/Student-portfolio-/actions/workflows/ci.yml)
 
-A high-performance full-stack web application featuring **React 19 (Vite)**, **React Router 7**, **Express.js**, **MongoDB (Mongoose)**, **bcrypt** password hashing, **JWT authentication pipeline**, **route-based code splitting**, **in-memory caching (`node-cache`)**, **asynchronous event-driven architecture (`EventEmitter`)**, and **Automated CI/CD Pipeline via GitHub Actions**.
+A high-performance full-stack web application featuring **React 19 (Vite)**, **React Router 7**, **Express.js**, **MongoDB (Mongoose)**, **bcrypt** password hashing, **JWT authentication pipeline**, **route-based code splitting**, **in-memory caching (`node-cache`)**, **asynchronous event-driven architecture (`EventEmitter`)**, **automated CI/CD via GitHub Actions**, and **Server-Side AI API Integration with Graceful Degradation**.
 
 > **Course**: Advanced Web Development Frameworks (ITUE301)  
-> **Practical 12**: CI/CD Pipeline with GitHub Actions  
+> **Practical 13**: AI API Integration into a Web Application  
 > **Student**: Samarth Rojara  
 
 ---
 
-## 🚀 CI/CD Pipeline Architecture (Practical 12)
-
-Every push to `main` or `practical-12`, and every pull request targeting `main`, automatically triggers GitHub Actions across isolated Ubuntu Linux runners:
+## 🤖 Practical 13: Secure AI API Architecture & Graceful Degradation
 
 ```text
-git push origin main (or practical-12) / pull_request -> main
-                            │
-                            ▼
-              [ GitHub Actions Trigger: on: push / pr ]
-                            │
-                            ▼
-                ┌───────────────────────┐
-                │   Job 1: lint         │ (ubuntu-latest)
-                │   ├── actions/checkout │
-                │   ├── setup-node (v18)│
-                │   ├── npm install     │
-                │   └── npm run lint    │ (Oxlint 0 errors, 0 warnings)
-                └───────────┬───────────┘
-                            │ (needs: lint)
-                            ▼
-                ┌───────────────────────┐
-                │ Job 2: build-and-test │ (ubuntu-latest)
-                │   ├── actions/checkout │
-                │   ├── setup-node (v18)│
-                │   ├── npm install     │
-                │   ├── npm run build   │ (Vite client production bundle)
-                │   └── npm test        │ (Jest + Supertest API test suite)
-                └───────────┬───────────┘
-                            │
-            ┌───────────────┴───────────────┐
-            ▼                               ▼
-   [ All Steps Passed ]            [ Any Assertion Failed ]
-   Green Checkmark (✅)               Red Cross Mark (❌)
-   Pipeline Status: PASSING         Pipeline Status: FAILED
-   Badge: passing                   Badge: failing
+React Frontend (Tasks Page)
+   │
+   ├── User enters task title (e.g., "Implement JWT Auth Refresh Token")
+   ├── Clicks "✨ Generate AI Description"
+   │    │
+   │    ▼ [POST /api/ai/generate-description] (Authorization: Bearer <token>)
+   │
+Express Backend (Node.js)
+   │
+   ├── 1. aiRateLimiter Middleware (Supplementary Problem)
+   │       └── Enforces 10-second client cooldown to prevent quota exhaustion (HTTP 429)
+   │
+   ├── 2. aiService.js
+   │       ├── Reads OPENAI_API_KEY / GEMINI_API_KEY securely from server-side (.env)
+   │       │   (API key is never exposed to the frontend or browser DevTools)
+   │       │
+   │       ├── Attempt A: OpenAI API (gpt-4o-mini)
+   │       │   └── Sends system prompt -> parses JSON { description, suggestedPriority }
+   │       │
+   │       ├── Attempt B: Google Gemini API (gemini-1.5-flash)
+   │       │   └── Fallback provider if Gemini key configured
+   │       │
+   │       └── Attempt C: Intelligent Graceful Degradation Fallback (Step 6)
+   │           └── If key missing, invalid (401), rate-limited, or network times out:
+   │               Catches error -> applies domain-aware heuristic template -> returns HTTP 200:
+   │               { description: "...", suggestedPriority: "high", fallback: true }
+   │
+   ▼ Response returned to Frontend
+React UI (Editable Suggestion & User Governance)
+   ├── Automatically populates description textarea and priority select
+   ├── User retains full control to edit, modify, or accept the suggestion
+   ├── Displays status pill: 🤖 AI Output OR ⚡ Fallback Active OR ⏳ Rate Limit
+   └── Displays prominent Responsible AI disclaimer before task creation
 ```
 
 ---
 
-## 🧪 Automated Test Suite (`tests/api.test.js`)
+## 🛠️ Key Implementation Details (Practical 13)
 
-The test suite leverages **Jest** and **Supertest** to test critical backend endpoints and security layers:
-
-1. **`GET /health`**: Asserts HTTP `200 OK` and payload `{ status: 'ok', auth: 'enabled' }`.
-2. **`GET /cache/stats` (Practical 9)**: Asserts HTTP `200 OK` and validates cache metrics (`hits`, `misses`, `ttlSeconds: 60`).
-3. **`GET /events/log` (Practical 10)**: Asserts HTTP `200 OK` and ensures asynchronous event log array is exposed.
-4. **`GET /tasks` without Auth (Practical 7)**: Asserts HTTP `401 Unauthorized` and validates error payload protection.
-5. **`GET /tasks` with valid JWT Token (Practical 6, 7 & 9)**: Generates a cryptographically signed JWT token, injects the authorization header (`Bearer <token>`), and asserts HTTP `200 OK` with task array data.
-
----
-
-## 🛠️ GitHub Actions Workflow Configuration (`.github/workflows/ci.yml`)
-
-The pipeline workflow incorporates:
-- **Two Sequential Jobs**: `lint` runs first; `build-and-test` runs only if linting succeeds (`needs: lint`).
-- **Dependency Caching & Installation**: `npm install` executed on a clean `ubuntu-latest` image.
-- **Frontend Compilation**: `npm run build` verifies Vite compilation and catch build-time syntax or type errors.
-- **Backend Test Runner**: `npm test` runs all automated test suites and returns non-zero exit code upon assertion failure.
-- **Live Status Badge**: Embedded at the top of the README reflecting real-time pipeline state.
+1. **Server-Side Key Encapsulation**:
+   - `OPENAI_API_KEY` and `GEMINI_API_KEY` are stored strictly in `.env`.
+   - `.env` is excluded in `.gitignore`; no secrets are ever exposed in client bundles or Git history.
+2. **Dedicated Modular Service (`services/aiService.js`)**:
+   - Connects to OpenAI (`gpt-4o-mini`) using the official SDK.
+   - Automatically supports Google Gemini (`gemini-1.5-flash`).
+   - Implements intelligent heuristic fallback for bugfixes, authentication, security, testing, deployment, and documentation.
+3. **Defensive Rate Limiting (`middleware/aiRateLimit.js`)**:
+   - Prevents API spam and quota depletion by enforcing a client-side cooldown.
+   - Returns HTTP `429 Too Many Requests` with a human-readable retry notice.
+4. **Rich Interactive UI in Task Form (`src/pages/Projects.jsx`)**:
+   - **Loading State**: Displays animated spinner and "Generating AI Suggestion..." while awaiting response.
+   - **Editable Suggestion**: Injects the AI response into the description field without locking it, preserving complete user autonomy.
+   - **Visible Disclaimer**: "⚠️ *Disclaimer: Content is generated by third-party AI or heuristic fallback. Please review and edit before saving.*"
 
 ---
 
 ## 📝 Analysis & Key Questions (Viva / Rubric)
 
-### 1. What is the difference between Continuous Integration (CI) and Continuous Deployment (CD), and which one does this practical actually demonstrate?
-* **Continuous Integration (CI)**:
-  - The automated practice where developers frequently merge code changes into a central repository, after which automated builds and tests run.
-  - The objective is to detect integration bugs, compilation errors, and broken tests as early as possible.
-* **Continuous Deployment (CD)**:
-  - The automated extension of CI where every change that passes all stages of the pipeline is released automatically to production servers (e.g. AWS, Render, Vercel, or Kubernetes) without human intervention.
-* **Which one is demonstrated**:
-  - This practical demonstrates **Continuous Integration (CI)**. It automatically lints, compiles the Vite frontend, and executes the backend Jest/Supertest test suite on every push. It does not deploy the built artifacts to a production hosting environment.
+### 1. Why must the AI API key be called from the backend rather than directly from the React frontend?
+* **Exposure in Client Bundles**: Any secret embedded in frontend code or `.env` files prefixed with `VITE_` is compiled into public JavaScript files sent to every user's browser.
+* **Network Inspection**: If called directly from React, the API key appears in plaintext in browser DevTools under the **Network** tab headers (`Authorization: Bearer sk-...`). Anyone can copy the key and use the account's quota.
+* **Abuse and Cost**: Attackers can extract the key to run automated bots, resulting in massive bills, quota exhaustion, or account suspension.
+* **Security Architecture**: Calling from the backend ensures the secret remains strictly on the server, allowing the backend to authenticate users, enforce rate limiting, sanitize prompts, and log AI activity safely.
 
-### 2. Why does running tests automatically on every push catch problems earlier than testing manually before a release?
-* **Immediate Feedback Loop**: A developer receives pass/fail notifications within seconds of pushing, when the changes are still fresh in their mind.
-* **Pinpointed Root Cause**: When tests run on individual commits, bugs are isolated to the specific lines of code changed in that single commit rather than an entire month's worth of accumulated changes.
-* **Elimination of Human Error**: Manual testing often skips edge cases, regression checks, or obscure endpoints due to fatigue or time constraints. Automated CI executes the full regression suite identically every time.
-* **Prevention of "Broken Trunk"**: Broken code is intercepted before other team members pull the broken changes, preventing developer downtime.
+### 2. What does 'graceful degradation' mean in this context, and why does it matter for a feature that depends on a third-party service outside your control?
+* **Definition**: Graceful degradation is a software resilience pattern where an application continues to operate with reduced or fallback functionality when an auxiliary subsystem fails, rather than crashing or freezing completely.
+* **Why it matters for AI APIs**:
+  - External AI services are subject to network latency, upstream outages, quota limits, and rate limits outside your infrastructure's control.
+  - If task creation depended synchronously on OpenAI/Gemini without fallback, an OpenAI outage would completely prevent users from adding tasks to their own application!
+* **Implementation**: In our application, if the AI API returns `401 Unauthorized`, `429 Rate Limit`, or network timeout, the `try/catch` block catches the error and serves a high-quality heuristic fallback template with `{ fallback: true }`. The core Task Management functionality remains 100% operational.
 
-### 3. What would happen to the pipeline if the test file path were incorrect — would the workflow fail at the same step as a genuine test failure?
-* **Failure Point**:
-  - If Jest is configured with a specific file path (e.g., `jest nonexistent/test.js`), Jest exits with an error (*"No tests found matching..."*) with exit code `1`.
-  - The workflow will fail at the **same step** (`Run Automated Tests`), but the **underlying reason in the log is completely different**:
-    - **Genuine Test Failure**: Logs show `FAIL tests/api.test.js`, displaying the failed assertion (e.g., `Expected: 200, Received: 500`).
-    - **Incorrect File Path**: Logs show `Pattern nonexistent/test.js matches no files` or Jest exit with `0 tests run`.
-* **Important Nuance**: If Jest is run without specific paths and discovers 0 test files across the repository, it fails by default with `passWithNoTests: false`. If `--passWithNoTests` was enabled, the pipeline would falsely report green (a dangerous false positive).
+### 3. What are the privacy and governance implications of sending task data to an external AI API, and what kind of data should never be sent this way?
+* **Data Ingestion & Model Training**: Many public AI endpoints by default reserve rights to store or train foundation models on submitted prompt data unless enterprise zero-data-retention agreements are active.
+* **Third-Party Data Breach Risk**: Information sent over external APIs traverses third-party servers and logs, creating compliance liability under GDPR, HIPAA, and CCPA.
+* **Sensitive Data That Must NEVER Be Sent**:
+  1. **Personally Identifiable Information (PII)**: Passwords, social security numbers, national IDs, student IDs, personal phone numbers, and home addresses.
+  2. **Confidential Credentials**: API keys, JWT secrets, database connection URIs, private RSA keys, and auth headers.
+  3. **Proprietary & Regulated Data**: Protected health records, financial account numbers, unreleased trade secrets, and non-public source code.
 
 ---
 
-## 💻 Running the Checks Locally
+## 🧪 Automated Testing & CI Verification
 
-Before pushing code to GitHub, developers can run the entire CI pipeline locally:
+The project includes 8 comprehensive automated tests in [`tests/api.test.js`](file:///Users/samarthrojara/student-portfolio/tests/api.test.js) executed via Jest and GitHub Actions:
 
 ```bash
-# 1. Run Linter
-npm run lint
-
-# 2. Compile Production Build
-npm run build
-
-# 3. Run Automated Tests
 npm test
+```
+
+Expected output:
+```text
+PASS tests/api.test.js
+  Task Management API — CI Test Suite (Practical 12 & 13)
+    ✓ GET /health returns status 200 and ok payload
+    ✓ GET /cache/stats returns status 200 and cache metrics
+    ✓ GET /events/log returns status 200 and event stream metadata
+    ✓ GET /tasks without auth token returns 401 Unauthorized
+    ✓ GET /tasks with valid JWT token returns status 200
+    ✓ POST /api/ai/generate-description without title returns 400 Bad Request
+    ✓ POST /api/ai/generate-description returns 200 with editable suggestion and priority
+    ✓ POST /api/ai/generate-description triggers rate limit on immediate consecutive request
 ```
 
 ---
 
-## 📸 Screenshots to Capture for Practical 12 Lab File
+## 💻 Running the Application Locally
 
-1. **GitHub Actions Overview**:
-   - The **Actions** tab on your GitHub repository showing the list of workflow runs.
-2. **Red X (Failed Pipeline)**:
-   - Click on the deliberate failure run showing the red ❌ badge and the failed test assertion in the step log (`Expected: 500, Received: 200`).
-3. **Green Checkmark (Passed Pipeline)**:
-   - Click on the corrected run showing the green ✅ checkmark with all jobs (`lint`, `build-and-test`) passing.
-4. **README Pipeline Status Badge**:
-   - The top of the repository `README.md` displaying the passing status badge: `build | passing`.
+```bash
+# Terminal 1: Start Backend API (Port 5001)
+npm run server
+
+# Terminal 2: Start React Frontend (Port 5173)
+npm run dev
+```
+
+1. Navigate to `http://localhost:5173` and log in or register.
+2. In **Create New Task**, type a title (e.g., `"Audit JWT security and bcrypt salt"`).
+3. Click **"✨ Generate AI Description"**.
+4. Observe the loading state, the auto-populated editable description, and the suggested priority.
+
+---
+
+## 📸 Screenshots to Capture for Practical 13 Lab File
+
+1. **Frontend Task Creation Form with AI Assistant**:
+   - The Create Task card showing the title input, priority select, and the **"✨ Generate AI Description"** button.
+2. **Loading State during Generation**:
+   - The button showing the animated spinner and `"Generating AI Suggestion..."`.
+3. **AI Generated Suggestion & Priority**:
+   - The form populated with the generated description, priority auto-set, and the green disclaimer pill (`🤖 AI Output: Generated via AI`).
+4. **Graceful Degradation Demonstration (Fallback Mode)**:
+   - Temporarily set `OPENAI_API_KEY=invalid_key_for_testing` in `.env` (or leave unconfigured) and click generate.
+   - Show the yellow fallback pill: `⚡ Fallback Active: Generated using local heuristic fallback (AI service offline or unconfigured)`. The application remains fully functional!
+5. **Rate Limiting Demonstration**:
+   - Click the generate button twice in rapid succession to show the orange rate limit warning (`⏳ Rate Limit: Please wait before requesting another AI suggestion`).
+6. **Backend Terminal Output / Automated Test Suite**:
+   - Terminal running `npm test` showing all 8 tests passing, including tests for `POST /api/ai/generate-description` and rate limiting.

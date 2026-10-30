@@ -9,7 +9,8 @@ import {
   logout,
   getUser,
   getToken,
-  getMe
+  getMe,
+  generateAiDescription
 } from '../api';
 import Loading from '../components/Loading';
 import ErrorDisplay from '../components/Error';
@@ -46,6 +47,10 @@ function Projects() {
   const [newPriority, setNewPriority] = useState('medium');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
+
+  // Practical 13: AI Integration States (Loading, Suggestions, Disclaimers, Rate Limit)
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [aiNotice, setAiNotice] = useState(null);
 
   // Edit state
   const [editingId, setEditingId] = useState(null);
@@ -170,6 +175,58 @@ function Projects() {
     logout();
   };
 
+  // Practical 13: Auto-generate description & suggest priority via backend AI
+  const handleGenerateAi = async () => {
+    const trimmedTitle = newTitle.trim();
+    if (!trimmedTitle) {
+      addToast('Please enter a task title first before requesting an AI suggestion.', 'warning');
+      return;
+    }
+
+    setIsGeneratingAi(true);
+    setAiNotice(null);
+
+    try {
+      const data = await generateAiDescription(trimmedTitle);
+      if (data.description) {
+        setNewDescription(data.description);
+      }
+      if (data.suggestedPriority) {
+        setNewPriority(data.suggestedPriority);
+      }
+
+      if (data.fallback) {
+        setAiNotice({
+          type: 'fallback',
+          message: data.message || 'AI service offline or unconfigured. Applied local smart heuristic template.'
+        });
+        addToast('Applied smart heuristic description (AI Fallback Active)', 'info');
+      } else {
+        setAiNotice({
+          type: 'success',
+          message: `Generated via ${data.provider ? data.provider.toUpperCase() : 'AI'}. Suggested priority: ${data.suggestedPriority || 'medium'}.`
+        });
+        addToast(`✨ AI generated description and suggested ${data.suggestedPriority} priority!`, 'success');
+      }
+    } catch (err) {
+      if (err.status === 429) {
+        setAiNotice({
+          type: 'rate-limit',
+          message: err.message || 'Rate limit active. Please wait a few seconds before requesting another AI suggestion.'
+        });
+        addToast(err.message || 'AI Rate limit reached. Please wait a moment.', 'warning');
+      } else {
+        setAiNotice({
+          type: 'fallback',
+          message: 'AI service currently unreachable. You can continue typing your own description manually.'
+        });
+        addToast('AI service error: graceful degradation active', 'warning');
+      }
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
   // Create Task with Optimistic UI update
   const handleCreateTask = async (e) => {
     e.preventDefault();
@@ -180,6 +237,7 @@ function Projects() {
     }
 
     setCreateError(null);
+    setAiNotice(null);
     setIsCreating(true);
 
     const taskPayload = {
@@ -561,8 +619,56 @@ function Projects() {
                 </div>
               </div>
 
+              {/* Practical 13: AI Auto-Generate Description Assistant */}
+              <div className="ai-assist-box">
+                <div className="ai-assist-header">
+                  <div className="ai-assist-badge-group">
+                    <span className="ai-sparkle-pill">✨ Practical 13: AI Assistant</span>
+                    <span className="ai-model-hint">OpenAI / Gemini API</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-ai-generate"
+                    onClick={handleGenerateAi}
+                    disabled={isGeneratingAi || isCreating || !newTitle.trim()}
+                    title={!newTitle.trim() ? 'Enter a task title first' : 'Auto-generate description & suggest priority'}
+                  >
+                    {isGeneratingAi ? (
+                      <>
+                        <span className="ai-spinner" aria-hidden="true" />
+                        <span>Generating AI Suggestion...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>✨ Generate AI Description</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {aiNotice && (
+                  <div className={`ai-disclaimer-pill ai-disclaimer-${aiNotice.type}`} role="status">
+                    {aiNotice.type === 'fallback' && (
+                      <span>⚡ <strong>Fallback Active:</strong> {aiNotice.message}</span>
+                    )}
+                    {aiNotice.type === 'success' && (
+                      <span>🤖 <strong>AI Output:</strong> {aiNotice.message}</span>
+                    )}
+                    {aiNotice.type === 'rate-limit' && (
+                      <span>⏳ <strong>Rate Limit:</strong> {aiNotice.message}</span>
+                    )}
+                  </div>
+                )}
+
+                <p className="ai-legal-disclaimer">
+                  ℹ️ <em>Disclaimer: Content is generated by AI or heuristic fallback. Review and edit before saving.</em>
+                </p>
+              </div>
+
               <div className="field">
-                <label htmlFor="task-description">Description (optional)</label>
+                <label htmlFor="task-description">
+                  Description <span className="label-hint">(Editable AI Suggestion)</span>
+                </label>
                 <textarea
                   id="task-description"
                   className="input-control textarea-control"

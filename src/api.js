@@ -149,4 +149,16 @@ export const getEventLogs = () => {
   return fetch(`${BASE_URL}/events/log`).then(handleResponse);
 };
 
+/* ==========================================================================
+   AI API Integration (Practical 13)
+   ========================================================================== */
+
+export const generateAiDescription = async (title) => {
+  return fetch(`${BASE_URL}/api/ai/generate-description`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ title })
+  }).then(handleResponse);
+};
+
 export { BASE_URL };

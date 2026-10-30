@@ -2,10 +2,14 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../server.js';
 import cache from '../cache.js';
+import { resetAiRateLimit } from '../middleware/aiRateLimit.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key_change_in_production';
 
-describe('Task Management API — CI Test Suite (Practical 12)', () => {
+describe('Task Management API — CI Test Suite (Practical 12 & 13)', () => {
+  beforeEach(() => {
+    resetAiRateLimit();
+  });
   // Test 1: Health Check Endpoint
   test('GET /health returns status 200 and ok payload', async () => {
     const res = await request(app).get('/health');
@@ -60,5 +64,46 @@ describe('Task Management API — CI Test Suite (Practical 12)', () => {
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThan(0);
     expect(res.body[0].title).toBe('Automated CI Test Task');
+  });
+
+  // Test 6: AI API Endpoint — Empty Title returns 400 Bad Request (Practical 13)
+  test('POST /api/ai/generate-description without title returns 400 Bad Request', async () => {
+    const res = await request(app)
+      .post('/api/ai/generate-description')
+      .send({});
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toHaveProperty('error');
+  });
+
+  // Test 7: AI API Endpoint — Returns 200 and Graceful Degradation / AI Suggestion (Practical 13)
+  test('POST /api/ai/generate-description returns 200 with editable suggestion and priority', async () => {
+    const res = await request(app)
+      .post('/api/ai/generate-description')
+      .send({ title: 'Fix database query performance bottleneck' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty('description');
+    expect(typeof res.body.description).toBe('string');
+    expect(res.body.description.length).toBeGreaterThan(10);
+    expect(res.body).toHaveProperty('suggestedPriority');
+    expect(['low', 'medium', 'high']).toContain(res.body.suggestedPriority);
+    expect(res.body).toHaveProperty('fallback');
+  });
+
+  // Test 8: AI Rate Limiting Middleware (Practical 13 Supplementary)
+  test('POST /api/ai/generate-description triggers rate limit on immediate consecutive request', async () => {
+    // First request succeeds
+    const first = await request(app)
+      .post('/api/ai/generate-description')
+      .send({ title: 'First Task Title' });
+    expect(first.statusCode).toBe(200);
+
+    // Second immediate request from same client gets 429 Too Many Requests
+    const second = await request(app)
+      .post('/api/ai/generate-description')
+      .send({ title: 'Second Task Title' });
+    expect(second.statusCode).toBe(429);
+    expect(second.body).toHaveProperty('error', 'Too Many Requests');
   });
 });

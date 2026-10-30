@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - practical-12
+      - practical-13
   pull_request:
     branches:
       - main

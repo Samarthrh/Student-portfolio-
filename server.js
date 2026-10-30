@@ -11,6 +11,8 @@ import { validateTask, validateRegister, validateLogin } from './middleware/vali
 import cache, { cacheMetrics } from './cache.js';
 import taskEvents from './events.js';
 import { eventLog } from './listeners.js';
+import { generateTaskDescription } from './services/aiService.js';
+import { aiRateLimiter } from './middleware/aiRateLimit.js';
 
 dotenv.config();
 
@@ -67,6 +69,33 @@ app.get('/events/log', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+/* ==========================================================================
+   AI API Integration Endpoints (Practical 13)
+   ========================================================================== */
+const handleAiGenerateDescription = async (req, res) => {
+  const { title } = req.body;
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    return res.status(400).json({ error: 'Task title is required to generate an AI description' });
+  }
+
+  try {
+    const result = await generateTaskDescription(title.trim());
+    res.json(result);
+  } catch (err) {
+    console.error('[AI Route Error]:', err.message);
+    res.status(200).json({
+      description: '',
+      suggestedPriority: 'medium',
+      fallback: true,
+      error: 'AI service encountered an unexpected error.'
+    });
+  }
+};
+
+// Route definitions for both /api/ai/generate-description and /ai/generate-description
+app.post('/api/ai/generate-description', aiRateLimiter, handleAiGenerateDescription);
+app.post('/ai/generate-description', aiRateLimiter, handleAiGenerateDescription);
 
 /* ==========================================================================
    Authentication Routes (Practical 7)
