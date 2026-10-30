@@ -345,17 +345,20 @@ app.use((error, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Start Server
+// Start Server (only when not running under automated test runner)
 const startServer = async () => {
   const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/taskdb';
   await mongoose.connect(mongoUri);
   console.log('MongoDB connected');
-  app.listen(port, () => console.log(`Task API with EventEmitter listening on port ${port}`));
+  return app.listen(port, () => console.log(`Task API with EventEmitter listening on port ${port}`));
 };
 
-startServer().catch((error) => {
-  console.error('Unable to start server:', error.message);
-  process.exitCode = 1;
-});
+if (process.env.NODE_ENV !== 'test') {
+  startServer().catch((error) => {
+    console.error('Unable to start server:', error.message);
+    process.exitCode = 1;
+  });
+}
 
+export { app, startServer };
 export default app;
