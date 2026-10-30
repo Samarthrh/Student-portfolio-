@@ -6,11 +6,10 @@ import cache from '../cache.js';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key_change_in_production';
 
 describe('Task Management API — CI Test Suite (Practical 12)', () => {
-  // Test 1: Health Check Endpoint (Deliberately broken for Practical 12 CI demonstration)
+  // Test 1: Health Check Endpoint
   test('GET /health returns status 200 and ok payload', async () => {
     const res = await request(app).get('/health');
-    // Deliberate failure assertion for Practical 12 demonstration
-    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('status', 'ok');
     expect(res.body).toHaveProperty('auth', 'enabled');
   });
